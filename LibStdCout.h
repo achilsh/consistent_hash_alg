@@ -18,9 +18,9 @@
 #include <time.h>
 #include <assert.h>
 
-namespace LRU_ALG
+namespace CONSISTENT_HASH
 {
-#if  1
+#ifdef _debug_on 
 
 #define RESET   "\033[0m"
 #define BLACK   "\033[30m"      /* Black */

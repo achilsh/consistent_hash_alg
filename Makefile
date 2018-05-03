@@ -13,12 +13,12 @@ all:$(BINARY)
 CXX = g++
 CC = gcc
 
-CXXFLAGS= -g -Wall -ggdb3 -DDEBUG_TEST -D
+CXXFLAGS= -g -Wall -ggdb3 -DDEBUG_TEST -D_debug_on
 
 %.o:%.cpp
 	$(CXX) $(CXXFLAGS) -c $^ $(INC_ALL)
 
-consistent_test:consistent_hash_test.o
+consistent_test:consistent_hash_test.o  hash.o
 	$(CXX) $(CXXFLAGS)  -o $@ $^ $(LIB_ALL)
 clean:
 	rm -f *.o *~ $(BINARY)
