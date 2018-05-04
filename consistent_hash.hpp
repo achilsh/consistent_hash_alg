@@ -20,28 +20,42 @@ namespace CONSISTENT_HASH
      public:
       VNode(const T& tNode, int iVNodeNums);
       virtual ~VNode();
-      void SetVNodeIndex(uint32_t index);
+      void SetVNodeHashIndex(uint32_t index);
+      void SetVNodeSeq(int32_t iseq)
+      {
+          m_iVnodeSeq = iseq;
+      }
+      int32_t GetVNodeSeq()
+      {
+          return m_iVnodeSeq;
+      }
       void IncrKeyNums();
       void SetHashVal(const uint32_t uiHash);
       T& GetNode()
       {
           return m_Node;
       }
-      int32_t GetVNodeIndex() // node hash index
+      uint32_t GetVNodeHashIndex() // node hash index in vnode list.
       {
-          return m_iVNodeIndex;
+          return m_iVNodeHashIndex;
       }
       int32_t GetKeyNums()
       {
           return m_iKeyNums;
       }
+      uint32_t GetVnodeHashVal()
+      {
+          return m_uiHashVal;
+      }
 
      private:
       T m_Node; //vnode content.
       int32_t m_iVNodeNums; //node has vnode nums
-      uint32_t  m_iVNodeIndex; //cur vnode index in list of vnode list
+      uint32_t  m_iVNodeHashIndex; //cur vnode hash index in ring vnode list, not seq .
       int32_t m_iKeyNums; //this vnode has nums of key in hash ring.
       uint32_t m_uiHashVal; //this vnode hash val
+      int32_t m_iVnodeSeq; //cur vnode in node seq node.
+
     };
 
     //------------------------------------------//

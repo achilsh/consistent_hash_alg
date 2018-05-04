@@ -20,7 +20,6 @@
 
 namespace CONSISTENT_HASH
 {
-#ifdef _debug_on 
 
 #define RESET   "\033[0m"
 #define BLACK   "\033[30m"      /* Black */
@@ -140,15 +139,6 @@ namespace CONSISTENT_HASH
     fflush(stdout);\
 }
 
-#else
-
-#define err_quit(format, args...) {}
-#define LOG(format, args...) {}
-#define DEBUG_LOG(format, args...) {}
-#define WARN_LOG(format, args...) {}
-#define ERROR_LOG(format, args...) {}
-
-#endif 
 
 }   /**< loss namespace */
 

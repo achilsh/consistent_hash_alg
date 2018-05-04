@@ -2,13 +2,14 @@
 #define _consistent_hash_impl_hpp_
 
 #include "consistent_hash.hpp"
+#include "LibStdCout.h"
 
 namespace CONSISTENT_HASH
 {
 
 template<typename T>
 VNode<T>::VNode(const T& tNode, int iVNodeNums): m_Node(tNode), m_iVNodeNums(iVNodeNums), 
-    m_iVNodeIndex(-1), m_iKeyNums(0), m_uiHashVal(0)
+    m_iVNodeHashIndex(0), m_iKeyNums(0), m_uiHashVal(0), m_iVnodeSeq(-1)
 {
 }
 
@@ -16,7 +17,7 @@ template<typename T>
 VNode<T>::~VNode()
 {
     m_iVNodeNums = 0;
-    m_iVNodeIndex = -1;
+    m_iVNodeHashIndex = -1;
     m_iKeyNums = 0;
     m_uiHashVal = 0;
 }
@@ -28,9 +29,9 @@ void VNode<T>::IncrKeyNums()
 }
 
 template<typename T>
-void VNode<T>::SetVNodeIndex(uint32_t index)
+void VNode<T>::SetVNodeHashIndex(uint32_t index)
 {
-    m_iVNodeIndex = index;
+    m_iVNodeHashIndex = index;
 }
 
 template<typename T>
@@ -47,7 +48,7 @@ CHasher<T,H, K>::CHasher(uint32_t iVNodeNums ): m_uiVNodeNums(iVNodeNums)
     {
         m_uiVNodeNums = 1;
     }
-    m_uiHashMask = uint32_t(1 << 32) - 1;
+    m_uiHashMask = (1UL << 32) - 1;
 }
 
 template<typename T, typename H, typename K>
@@ -65,7 +66,7 @@ CHasher<T,H, K>::~CHasher()
 }
 
 template<typename T, typename H, typename K>
-bool CHasher<T,H, K>::InsertVNode(const T& tNode, int iVNodeIndex)
+bool CHasher<T,H, K>::InsertVNode(const T& tNode, int iVNodeseq)
 {
     VNode<T>* pNode = new VNode<T>(tNode, m_uiVNodeNums);
     if (pNode == NULL)
@@ -74,13 +75,14 @@ bool CHasher<T,H, K>::InsertVNode(const T& tNode, int iVNodeIndex)
     }
 
     std::ostringstream os;
-    os << pNode->GetNode() << ":" << iVNodeIndex;
+    os << pNode->GetNode() << ":" << iVNodeseq;
     uint32_t uiHash = m_Hasher(std::string(os.str()));
     pNode->SetHashVal(uiHash);
 
     uint32_t uiHashIndex =  uiHash & m_uiHashMask;
-    pNode->SetVNodeIndex(iVNodeIndex);
-
+    //std::cout << "insert hash index: " << uiHashIndex <<", hash: " << uiHash << ", hash mask: " <<  m_uiHashMask << std::endl;
+    pNode->SetVNodeHashIndex(uiHashIndex); ///vnode hash index,, not seq of vnode in node
+    pNode->SetVNodeSeq(iVNodeseq);
     typename std::pair<typename std::map<uint32_t, VNode<T>*>::iterator, bool> retInsert;
     retInsert = m_mpCHNodes.insert(std::pair<uint32_t, VNode<T>*>(uiHashIndex, pNode));
     if (retInsert.second == false)
@@ -171,29 +173,34 @@ void CHasher<T,H, K>::IteratorCHasher()
     std::map<T, std::vector<VNode<T>*> > tmpNodeList;
     
     typename std::map<uint32_t, VNode<T>*>::iterator it;
+    std::stringstream ios;
     for (it = m_mpCHNodes.begin(); it != m_mpCHNodes.end(); ++it)
     {
         if (it->second)
         {
             tmpNodeList[it->second->GetNode()].push_back(it->second);
+            ios << it->second->GetNode() << ":" << it->second->GetVNodeSeq() 
+                << " , vnode hash point: " << it->second->GetVNodeHashIndex() << ", \n"; 
         }
     }
+    DEBUG_LOG("ordered vnode print ====>: \n%s", ios.str().c_str());
 
     typename std::map<T, std::vector<VNode<T>*> >::iterator itVnode;
     for (itVnode = tmpNodeList.begin(); itVnode != tmpNodeList.end(); ++itVnode)
     {
         std::ostringstream os;
 
-        os << "one Node: " << itVnode->first << ", vnode list: [ ";
+        os << "===> one Node: " << itVnode->first << ", vnode list: [ ";
         for (typename std::vector<VNode<T>*>::iterator itVnodeList = itVnode->second.begin();
              itVnodeList != itVnode->second.end(); ++ itVnodeList)
         {
-            os << "vnodeIndx: " << (*itVnodeList)->GetVNodeIndex() << ", keynums: " 
-                << (*itVnodeList)->GetKeyNums() <<"; ";
+            os << "{  vnodeseq: " << (*itVnodeList)->GetVNodeSeq() << ", hit keynums: " 
+                << (*itVnodeList)->GetKeyNums() << ",  vnode index: " << (*itVnodeList)->GetVNodeHashIndex() 
+                << " }; ";
         }
             
-        os << " ] ";
-        std::cout << os.str() << std::endl;
+        os << " ] <=== ";
+        DEBUG_LOG("%s", os.str().c_str());
     }
 }
 
@@ -211,27 +218,34 @@ VNode<T>* CHasher<T,H, K>::FindNodeByKey(const K& inKey)
 
     uint32_t uiHash = m_Hasher(std::string(os.str()));
     uint32_t uiPoint =  uiHash & m_uiHashMask;
+    DEBUG_LOG("key: %s, key hash : %u, key index: %u", os.str().c_str(), uiHash, uiPoint);
 
     uint32_t uiMid = 0, uiLo = 0, uiH = m_mpCHNodes.size() - 1;
+    DEBUG_LOG("init lo: %u, ho: %d", uiLo, uiH);
     while(1)
     {
         typename std::map<uint32_t, VNode<T>*>::iterator itLo = m_mpIndexVnode.find(uiLo);
         if (itLo == m_mpIndexVnode.end())
         {
-            //cout
+            ERROR_LOG("not find key hash index in node hash ring, hash index num: %u", uiLo);
             break;
         }
         typename std::map<uint32_t, VNode<T>*>::iterator itHo = m_mpIndexVnode.find(uiH);
         if (itHo == m_mpIndexVnode.end())
         {
-            //cout
+            ERROR_LOG("not find key hash index in node hash ring, hash index num: %u", uiH);
             break;
         }
 
-        if (uiPoint <= itLo->second->GetVNodeIndex()  || 
-            uiPoint > itHo->second->GetVNodeIndex() )
+        if (uiPoint <= itLo->second->GetVNodeHashIndex()  || 
+            uiPoint > itHo->second->GetVNodeHashIndex() )
         {
-            //cout 
+            DEBUG_LOG("find vnode for key. vnode index: [ %u ], in all vnode list. "
+                      "vnode seq: [ %u ], in one really node. vnode hash val: %u,"
+                      " key index: [ %u ]", 
+                      uiLo, itLo->second->GetVNodeSeq(), itLo->second->GetVnodeHashVal(),
+                      uiPoint);
+            itLo->second->IncrKeyNums();
             return itLo->second;
         }
         
@@ -245,14 +259,19 @@ VNode<T>* CHasher<T,H, K>::FindNodeByKey(const K& inKey)
             break;
         }
 
-        if ( uiPoint <=  itMid->second->GetVNodeIndex() &&
-            uiPoint > (uiMid ?  m_mpIndexVnode[uiMid-1]->GetVNodeIndex(): 0) )
+        if ( uiPoint <=  itMid->second->GetVNodeHashIndex() &&
+            uiPoint > (uiMid ?  m_mpIndexVnode[uiMid-1]->GetVNodeHashIndex(): 0) )
         {
-            //cout
+
+            DEBUG_LOG("find vnode for key. vnode index: [ %u ], in all vnode list. "
+                      "vnode seq: [ %u ], in one really node. vnode hash val: %u,"
+                      " key index: [ %u ]", 
+                      uiMid, itMid->second->GetVNodeSeq(), itMid->second->GetVnodeHashVal(),
+                      uiPoint);
             return m_mpIndexVnode[uiMid];
         }
 
-        if (itMid->second->GetVNodeIndex() < uiPoint)
+        if (itMid->second->GetVNodeHashIndex() < uiPoint)
         {
             uiLo = uiMid + 1;
         }
